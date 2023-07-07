@@ -11,7 +11,7 @@ from diffusers import (
     StableDiffusionPipeline,
 )
 
-device = "cuda"
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 scheduler = None
 model_id = "dreamlike-art/dreamlike-photoreal-2.0"
 ROCM = True
@@ -69,7 +69,7 @@ class ImageGen:
             prompt,
             height=image_length,
             width=image_length,
-            num_inference_steps=25,
+            num_inference_steps=iterations,
             guidance_scale=9,
             num_images_per_prompt=num_images,
             negative_prompt=negative_prompt,
