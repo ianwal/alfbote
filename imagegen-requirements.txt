@@ -1,0 +1,10 @@
+diffusers
+transformers
+accelerate
+mediapy
+triton
+scipy
+ftfy
+spacy==3.4.4
+# Optional: Does not work with ROCM but may speed up nvidia
+# xformers==0.0.16rc425
