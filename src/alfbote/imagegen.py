@@ -57,7 +57,7 @@ class ImageGen:
         num_images = 1
         seed = random.randint(0, 2147483647)
         iterations = max(min(iterations, 60), 5)
-        remove_safety = False
+        remove_safety = True
 
         if remove_safety:
             pipe.safety_checker = None

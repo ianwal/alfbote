@@ -12,6 +12,7 @@ from rich import print as rprint
 import torch
 
 from alfbote.people import People
+from alfbote.emojis import Emojis
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -68,6 +69,8 @@ if CHAT_ENABLED:
 chat_lock = Lock()
 image_lock = Lock()
 
+last_msg = None
+
 
 # Run blocking function with async to avoid Discord heartbeat timeouts
 async def run_blocking(blocking_func: Callable, *args, **kwargs) -> Any:
@@ -116,9 +119,7 @@ async def c(ctx, *, msg):
                     with tempfile.TemporaryDirectory() as tmpdir:
                         audio_file = tmpdir + "audio.wav"
                         try:
-                            await run_blocking(
-                                chatgen.generate_speech, output, audio_file
-                            )
+                            await run_blocking(chatgen.generate_speech, output, audio_file)
                         except Exception as exc:
                             print(exc)
                             return
@@ -126,9 +127,7 @@ async def c(ctx, *, msg):
                         try:
                             if ctx.voice_client is None:
                                 await ctx.message.author.voice.channel.connect()
-                            elif ctx.author.voice.channel and (
-                                ctx.author.voice.channel == ctx.voice_client.channel
-                            ):
+                            elif ctx.author.voice.channel and (ctx.author.voice.channel == ctx.voice_client.channel):
                                 pass
                             else:
                                 await ctx.voice_client.disconnect(force=True)
@@ -143,19 +142,45 @@ async def c(ctx, *, msg):
                         ffmpeg_options = {"options": "-vn"}
 
                         try:
-                            ctx.voice_client.play(
-                                discord.FFmpegPCMAudio(
-                                    source=audio_file, **ffmpeg_options
-                                )
-                            )
+                            ctx.voice_client.play(discord.FFmpegPCMAudio(source=audio_file, **ffmpeg_options))
                         except discord.ClientException:
                             pass
 
+
+# Stop all voice output including TTS
+@bot.command(pass_context=True)
+async def stfu(ctx):
+    if ctx.voice_client is None:
+        pass
+    elif ctx.author.voice.channel and (ctx.author.voice.channel == ctx.voice_client.channel):
+        ctx.voice_client.stop()
+
+
+# Stop all voice output including TTS
+@bot.command(pass_context=True)
+async def wtf(ctx):
+    if last_msg is not None:
+        try:
+            await last_msg.delete()
+        except:
+            pass
+
+# Remove messages sent by the bot on certain emojis
+@bot.event
+async def on_reaction_add(reaction, user):
+    if reaction.message.author.bot:
+        if reaction.emoji in Emojis.sad_emojis:
+            if last_msg is not None:
+                await last_msg.delete()
+
+
 @bot.event
 async def on_message(msg):
+    global last_msg
     if msg.author == bot.user:
+        last_msg = msg
         return
-    
+
     if msg.author.id in People.bad_users:
         return
 
@@ -166,7 +191,8 @@ async def on_message(msg):
 
 @bot.event
 async def on_ready():
-    print(f"Logged in as {bot.user}")
+    rprint(f"[blue] Logged in as {bot.user}")
 
 
+bot.run(DISCORD_API_KEY)
 bot.run(DISCORD_API_KEY)
