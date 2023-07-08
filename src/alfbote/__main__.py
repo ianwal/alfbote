@@ -142,7 +142,7 @@ async def c(ctx, *, msg):
                         ffmpeg_options = {"options": "-vn"}
 
                         try:
-                            ctx.voice_client.play(discord.FFmpegPCMAudio(source=audio_file, **ffmpeg_options))
+                            ctx.voice_client.play(discord.FFmpegOpusAudio(source=audio_file, **ffmpeg_options))
                         except discord.ClientException:
                             pass
 
@@ -194,5 +194,4 @@ async def on_ready():
     rprint(f"[blue] Logged in as {bot.user}")
 
 
-bot.run(DISCORD_API_KEY)
 bot.run(DISCORD_API_KEY)
