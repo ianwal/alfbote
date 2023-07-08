@@ -9,6 +9,7 @@ import discord
 from discord.ext import commands
 from dotenv import load_dotenv
 from rich import print as rprint
+import torch
 
 from alfbote.people import People
 
@@ -41,6 +42,8 @@ if GPU:
     # ROCM workaround
     os.environ["HSA_OVERRIDE_GFX_VERSION"] = "10.3.0"
     rprint("[green] GPU Enabled")
+    if not torch.cuda.is_available():
+        rprint("[red] ERROR: CUDA not detected. Exiting...")
 
 if SD_ENABLED:
     if not GPU:
