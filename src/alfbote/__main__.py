@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import functools
 import os
 import tempfile
@@ -9,11 +11,13 @@ import asyncio
 import discord
 from discord.ext import commands
 from dotenv import load_dotenv
-from rich import print as rprint
-import torch
+from rich import print
 
 from alfbote.people import People
 from alfbote.emojis import Emojis
+from alfbote.utils import run_blocking
+from alfbote.imagegen import ImageGen
+from alfbote.chatgen import ChatGen
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -24,8 +28,8 @@ load_dotenv()
 
 DISCORD_API_KEY = os.getenv("DISCORD_API_KEY")
 if DISCORD_API_KEY is None:
-    rprint("[red] ERROR: No API key set. Exiting...")
-    exit(-1)
+    print("[red] ERROR: No API key set. Exiting...")
+    exit(1)
 
 COLLAB = bool(int(os.getenv("COLLAB", "0")))
 # Options
@@ -40,45 +44,13 @@ if COLLAB:
 
     nest_asyncio.apply()
 
-if GPU:
-    # ROCM workaround
-    os.environ["HSA_OVERRIDE_GFX_VERSION"] = "10.3.0"
-    rprint("[green] GPU Enabled")
-    if not torch.cuda.is_available():
-        rprint("[red] ERROR: CUDA not detected. Exiting...")
-
-if SD_ENABLED:
-    if not GPU:
-        rprint("[red] ERROR: Image generation requires GPU.")
-        exit(-1)
-    rprint("[green] Image generation enabled")
-
-    from alfbote.imagegen import ImageGen
-
-if CHAT_ENABLED:
-    rprint("[green] Chat enabled")
-    if TTS_ENABLED:
-        rprint("[green] TTS Enabled")
-
-    from alfbote.chatgen import ChatGen
-
-    chatgen = ChatGen(tts=TTS_ENABLED, gpu=GPU)
 
 # Mutexes for generators
 # Chat lock is necessary
 # Image lock is just because of VRAM
 chat_lock = Lock()
-image_lock = Lock()
 
 last_msg = None
-
-
-# Run blocking function with async to avoid Discord heartbeat timeouts
-async def run_blocking(blocking_func: Callable, *args, **kwargs) -> Any:
-    func = functools.partial(
-        blocking_func, *args, **kwargs
-    )  # `run_in_executor` doesn't support kwargs, `functools.partial` does
-    return await bot.loop.run_in_executor(None, func)
 
 
 @bot.slash_command(
@@ -87,26 +59,6 @@ async def run_blocking(blocking_func: Callable, *args, **kwargs) -> Any:
 )  # Add the guild ids in which the slash command will appear. If it should be in all, remove the argument, but note that it will take some time (up to an hour) to register the command if it's for all guilds.
 async def test(ctx: discord.ApplicationContext):
     await ctx.respond(f"testcmd {bot.latency}")
-
-
-# Image generation
-@bot.command(pass_context=True)
-async def i(ctx: discord.ApplicationContext, *, msg):
-    if not SD_ENABLED or not GPU:
-        return
-
-    # Only process one prompt at a time
-    if image_lock.locked():
-        return
-
-    with image_lock:
-        async with ctx.typing():
-            with tempfile.SpooledTemporaryFile(mode="w+b") as file:
-                images = await run_blocking(ImageGen.generate_image, msg)
-                images[0].save(file, "jpeg")
-                file.seek(0)
-                discord_file = discord.File(file, filename=f"{msg}.jpg")
-                await ctx.send(f"{ctx.message.author.mention} {msg}", file=discord_file)
 
 
 class MyView(discord.ui.View):
@@ -118,7 +70,7 @@ class MyView(discord.ui.View):
     async def interaction_check(self, interaction):
         if interaction.user.id != interaction.message.author.id and interaction.user.id not in People.admins:
             # await interaction.response.send_message("Its not for you!", ephemeral=True)
-            #await interaction.response.defer()
+            # await interaction.response.defer()
             return False
         return True
 
@@ -244,7 +196,25 @@ async def on_message(msg):
 
 @bot.event
 async def on_ready():
-    rprint(f"[blue] Logged in as {bot.user}")
+    print(f"[blue] Logged in as {bot.user}")
 
+
+if GPU:
+    print("[green] GPU enabled")
+
+if SD_ENABLED:
+    print("[green] ImageGen enabled")
+    if not GPU:
+        print("[red] ERROR: ImageGen requires GPU=True.")
+        exit(1)
+
+    bot.add_cog(ImageGen(bot, ROCM=True))
+
+if CHAT_ENABLED:
+    print("[green] ChatGen enabled")
+    if TTS_ENABLED:
+        print("[green] TTS Enabled")
+
+    chatgen = ChatGen(tts=TTS_ENABLED, gpu=GPU)
 
 bot.run(DISCORD_API_KEY)
