@@ -55,7 +55,7 @@ async def test(ctx: discord.ApplicationContext):
     await ctx.respond(f"testcmd {bot.latency}")
 
 
-# Stop all voice output including TTS
+# Delete the last message posted by the bot
 @bot.command(pass_context=True)
 async def wtf(ctx: discord.ApplicationContext):
     if last_msg is not None:
