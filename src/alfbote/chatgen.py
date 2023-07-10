@@ -128,10 +128,15 @@ class ChatGen(commands.Cog, name="ChatGen"):
         elif ctx.author.voice.channel and (ctx.author.voice.channel == ctx.voice_client.channel):
             ctx.voice_client.stop()
 
-    def generate_message(self, msg: str, streaming: bool = False, max_tokens: int = 1000) -> str | Iterable:
+    # General message improvements, such as model specific improvements
+    def improve_message(self, msg: str) -> str:
         # This model is really good but it needs this prompt for it to return stuff easily
         if CHAT_MODEL == "wizardLM-13B-Uncensored.ggmlv3.q4_0.bin":
             msg = f"explain, describe, or continue the conversation: {msg}"
+        return msg
+
+    def generate_message(self, msg: str, streaming: bool = False, max_tokens: int = 1000) -> str | Iterable:
+        msg = self.improve_message(msg)
 
         if streaming:
             return self.model.generate(msg, n_batch=16, max_tokens=max_tokens, streaming=True)
