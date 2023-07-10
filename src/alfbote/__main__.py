@@ -48,10 +48,9 @@ last_msg = None
 
 
 @bot.slash_command(
-    name="test",
-    description="testcommand",  # guild_ids=["302888848466378762"]
+    name="test1", description="testcommand", guild_ids=[469733139019989013, 719804911377973269]
 )  # Add the guild ids in which the slash command will appear. If it should be in all, remove the argument, but note that it will take some time (up to an hour) to register the command if it's for all guilds.
-async def test(ctx: discord.ApplicationContext):
+async def test1(ctx: discord.ApplicationContext):
     await ctx.respond(f"testcmd {bot.latency}")
 
 
