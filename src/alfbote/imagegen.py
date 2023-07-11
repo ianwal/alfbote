@@ -89,7 +89,7 @@ class ImageGen(commands.Cog, name="ImageGen"):
                     images = await run_blocking(self.bot, ImageGen.generate_image, self, msg)
                     images[0].save(file, "jpeg")
                     file.seek(0)
-                    discord_file = File(file, filename=f"{msg}.jpg")
+                    discord_file = File(file, filename=f"{msg[:64]}.jpg")
                     await ctx.send(f"{ctx.message.author.mention} {msg}", file=discord_file)
 
     def generate_image(self, prompt: str, iterations: int = 25, negative_prompt: str = None):
