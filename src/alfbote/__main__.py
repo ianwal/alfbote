@@ -101,9 +101,10 @@ async def wtf(ctx: discord.ApplicationContext):
 async def on_reaction_add(reaction: discord.Reaction, user):
     if reaction.message.author.bot:
         if reaction.emoji in Emojis.sad_emojis:
-            last_msg = guild_db.get(reaction.message.guild, "last_msg")
-            if last_msg is not None:
-                await last_msg.delete()
+            try:
+                await reaction.message.delete()
+            except discord.errors.NotFound:
+                pass
 
 
 @bot.event
