@@ -67,23 +67,28 @@ class ChatGen(commands.Cog, name="ChatGen"):
             message: discord.Message = None
             stop_view = MyView()
             async with ctx.typing():
-                for a, token in enumerate(self.generate_message(msg, streaming=True), 0):
-                    output.append(token)
-                    current_msg = "".join(output)
-                    if message is None:
-                        message = await ctx.send(current_msg, view=stop_view)
-                    else:
-                        if a % 10 == 0:
-                            await message.edit(content=current_msg)
+                try:
+                    for a, token in enumerate(self.generate_message(msg, streaming=True), 0):
+                        output.append(token)
+                        current_msg = "".join(output)
+                        if message is None:
+                            message = await ctx.send(current_msg, view=stop_view)
+                        else:
+                            if a % 10 == 0:
+                                await message.edit(content=current_msg)
 
-                    if stop_view.stop_pressed:
-                        await message.edit(content=f"{current_msg} [STOPPED]")
-                        return
+                        if stop_view.stop_pressed:
+                            await message.edit(content=f"{current_msg} [STOPPED]")
+                            return
 
-                output = current_msg
-                # Remove stop button
-                stop_view.clear_items()
-                await message.edit(content=current_msg, view=stop_view)
+                    output = current_msg
+                    # Remove stop button
+                    stop_view.clear_items()
+                    await message.edit(content=current_msg, view=stop_view)
+
+                # If the message is removed with the stop button or the wtf command, ignore the error
+                except commands.errors.CommandInvokeError:
+                    pass
 
         if self.TTS_ENABLED:
             # Only play TTS for users in a channel
