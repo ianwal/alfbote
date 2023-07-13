@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from threading import Lock
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING
 
 import discord
 from discord.ext import commands
@@ -14,14 +13,11 @@ from alfbote.people import People
 from alfbote.emojis import Emojis
 from alfbote.imagegen import ImageGen
 from alfbote.chatgen import ChatGen
-
-intents = discord.Intents.default()
-intents.message_content = True
-
-bot = commands.Bot(command_prefix="#", intents=intents, status=discord.Status.online)
+from alfbote.bots import Alfbote, GuildDB
 
 if TYPE_CHECKING:
     from discord import Message, Guild
+    from typing import Any, Callable
 
 load_dotenv()
 
@@ -43,37 +39,7 @@ if COLLAB:
 
     nest_asyncio.apply()
 
-
-class GuildDB:
-    def __init__(self):
-        self.db: dict = {}
-
-    # Create a guild in the DB
-    def create(self, guild: Guild, data: dict) -> None:
-        self.db[guild.id] = data
-
-    # Get an item from the DB
-    def get(self, guild: Guild, key: str) -> Any | None:
-        return self.db.get(guild.id, None).get(key, None)
-
-    # Insert an entry into a guild in the DB without overwriting existing entries
-    def insert(self, guild: Guild, key: str, data: Any) -> None:
-        if self.db[guild.id].get(key, None) is None:
-            self.db[guild.id][key] = data
-
-    # Update an entry for a guild in the DB
-    def update(self, guild: Guild, key: str, data: Any) -> None:
-        self.db[guild.id][key] = data
-
-    # Delete a guild from the DB
-    def delete(self, key: str) -> None:
-        del self.db[key]
-
-    def __str__(self):
-        return str(self.db)
-
-
-guild_db = GuildDB()
+bot = Alfbote()
 
 
 @bot.slash_command(
@@ -86,7 +52,7 @@ async def test1(ctx: discord.ApplicationContext):
 # Delete the last message posted by the bot
 @bot.command(pass_context=True)
 async def wtf(ctx: discord.ApplicationContext):
-    last_msg: Message = guild_db.get(ctx.message.guild, "last_msg")
+    last_msg: Message = bot.guild_db.get(ctx.message.guild, "last_msg")
     if last_msg is not None:
         try:
             await last_msg.delete(reason="Deleted by wtf command")
@@ -109,9 +75,8 @@ async def on_reaction_add(reaction: discord.Reaction, user):
 
 @bot.event
 async def on_message(msg: Message):
-    global guild_db
     if msg.author == bot.user:
-        guild_db.update(msg.guild, "last_msg", msg)
+        bot.guild_db.update(msg.guild, "last_msg", msg)
         return
 
     if msg.author.id in People.bad_users:
@@ -124,11 +89,10 @@ async def on_message(msg: Message):
 
 @bot.event
 async def on_ready():
-    global guild_db
     print(f"[blue] Logged in as {bot.user}")
     for guild in bot.guilds:
-        guild_db.create(guild, {"last_msg": None, "last_msg_lock": Lock()})
-    print(str(guild_db))
+        bot.guild_db.create(guild, {"last_msg": None})
+    print(str(bot.guild_db))
 
 
 if GPU:
