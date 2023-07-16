@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import discord
-from discord.ext import commands
 from dotenv import load_dotenv
 from rich import print
 
@@ -13,7 +12,7 @@ from alfbote.people import People
 from alfbote.emojis import Emojis
 from alfbote.imagegen import ImageGen
 from alfbote.chatgen import ChatGen
-from alfbote.bots import Alfbote, GuildDB
+from alfbote.bots import Alfbote, GuildDB, CLICog
 
 if TYPE_CHECKING:
     from discord import Message, Guild
@@ -113,4 +112,6 @@ if CHAT_ENABLED:
 
     bot.add_cog(ChatGen(bot, tts=TTS_ENABLED, gpu=GPU))
 
+cli = CLICog(bot)
+bot.add_cog(cli)
 bot.run(DISCORD_API_KEY)
