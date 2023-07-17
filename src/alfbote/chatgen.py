@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 from tempfile import TemporaryDirectory
 from threading import Lock
-from typing import Iterable
+from typing import TYPE_CHECKING, Iterable
 
 import discord
 from discord.ext import commands
@@ -9,6 +11,9 @@ from rich import print
 
 from alfbote.people import People
 from alfbote.utils import run_blocking
+
+if TYPE_CHECKING:
+    from alfbote.bots import Alfbote
 
 # CHAT_MODEL = "nous-hermes-13b.ggmlv3.q4_0.bin"
 # CHAT_MODEL = "ggml-gpt4all-j-v1.3-groovy.bin"
@@ -26,8 +31,6 @@ class MyView(discord.ui.View):
 
     async def interaction_check(self, interaction):
         if interaction.user.id != interaction.message.author.id and interaction.user.id not in People.admins:
-            # await interaction.response.send_message("Its not for you!", ephemeral=True)
-            # await interaction.response.defer()
             return False
         return True
 
@@ -39,7 +42,7 @@ class MyView(discord.ui.View):
 
 
 class ChatGen(commands.Cog, name="ChatGen"):
-    def __init__(self, bot: discord.Bot, tts: bool = False, gpu: bool = False):
+    def __init__(self, bot: Alfbote, tts: bool = False, gpu: bool = False):
         self.bot = bot
         self.model = GPT4All(CHAT_MODEL, n_threads=12)
         self.model._is_chat_session_activated = True
