@@ -28,9 +28,9 @@ if DISCORD_API_KEY is None:
 COLLAB = bool(int(os.getenv("COLLAB", "0")))
 # Options
 GPU = bool(int(os.getenv("GPU", "1")))
-SD_ENABLED = bool(int(os.getenv("IMAGE", "1")))
-CHAT_ENABLED = bool(int(os.getenv("CHAT", "1")))
-TTS_ENABLED = bool(int(os.getenv("TTS", "1")))
+IMAGEGEN = bool(int(os.getenv("IMAGEGEN", "1")))
+CHATGEN = bool(int(os.getenv("CHATGEN", "1")))
+TTSGEN = bool(int(os.getenv("TTSGEN", "1")))
 ALLOWED_CHANNEL = os.getenv("ALLOWED_CHANNEL", "bot-channel")
 
 if COLLAB:
@@ -97,7 +97,7 @@ async def on_ready():
 if GPU:
     print("[green] GPU enabled")
 
-if SD_ENABLED:
+if IMAGEGEN:
     print("[green] ImageGen enabled")
     if not GPU:
         print("[red] ERROR: ImageGen requires GPU=True.")
@@ -105,12 +105,12 @@ if SD_ENABLED:
 
     bot.add_cog(ImageGen(bot, ROCM=True))
 
-if CHAT_ENABLED:
+if CHATGEN:
     print("[green] ChatGen enabled")
-    if TTS_ENABLED:
+    if TTSGEN:
         print("[green] TTS enabled")
 
-    bot.add_cog(ChatGen(bot, tts=TTS_ENABLED, gpu=GPU))
+    bot.add_cog(ChatGen(bot, tts=TTSGEN, gpu=GPU))
 
 cli = CLICog(bot)
 bot.add_cog(cli)
