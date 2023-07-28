@@ -1,0 +1,16 @@
+[Unit]
+Description=alfbote
+
+Wants=network.target
+After=syslog.target network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/user/alfbote
+ExecStart=/home/user/alfbote/venv/bin/python -m alfbote
+Restart=on-failure
+RestartSec=10
+KillMode=process
+
+[Install]
+WantedBy=multi-user.target
