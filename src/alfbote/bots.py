@@ -65,8 +65,13 @@ class CLICog(commands.Cog, name="Input"):
             try:
                 match pgm:
                     case "msg":
-                        msg = " ".join(args)
-                        chan = self.bot.get_channel(1126666074885210154)
+                        # Specify channel with chan=<channel_id>
+                        if "chan" in args[0]:
+                            chan = self.bot.get_channel(int(args[0].split("=")[1]))
+                            msg = " ".join(args[1:])
+                        else:
+                            chan = self.bot.get_channel(469733139552534531)
+                            msg = " ".join(args)
 
                         await chan.send(msg)
                     case "exit":
