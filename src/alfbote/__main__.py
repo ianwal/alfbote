@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 from typing import TYPE_CHECKING
-import queue
+from collections import deque
 
 import discord
 from discord.ext import commands
@@ -48,34 +48,49 @@ import yt_dlp
 class MusicPlayer:
     def __init__(self, bot: Alfbote, guild: Guild):
         self.bot = bot
-        self.song_queue = queue.Queue()
+        self.song_queue = deque()
         self.guild = guild
+        self.play_task = None
 
-    async def join_channel(self, ctx: discord.ApplicationContext):
+    async def join_channel(self, ctx: discord.ApplicationContext) -> bool:
         try:
             if ctx.voice_client is None:
                 await ctx.message.author.voice.channel.connect()
             elif ctx.author.voice.channel and (ctx.author.voice.channel == ctx.voice_client.channel):
-                return
+                pass
             else:
                 await ctx.voice_client.disconnect(force=True)
                 await ctx.message.author.voice.channel.connect()
+            return True
         except discord.ClientException:
             print("Error connecting to channel.")
+            return False
 
-    async def skip_song(self, ctx: discord.ApplicationContext):
-        if ctx.voice_client.is_playing():
-            ctx.voice_client.stop()
-
-    def next_song(self):
-        try:
-            next_song = self.song_queue.get(block=False)
-        except queue.Empty:
+    def skip_song(self, skip_all: bool = False):
+        if self.guild.voice_client is None:
             return
-        assert next_song is not None
 
+        if self.guild.voice_client.is_playing():
+            self.guild.voice_client.stop()
+
+        if skip_all:
+            self.song_queue.clear()
+
+        self.next_song()
+
+    def next_song(self, error=None):
+        if isinstance(error, Exception):
+            print(error)
+
+        if len(self.song_queue) == 0:
+            return
+
+        next_song = self.song_queue.pop()
+        assert next_song is not None
+        if self.guild.voice_client.is_playing():
+            self.guild.voice_client.stop()
         coro = self.play_song(next_song)
-        self.bot.loop.create_task(coro)
+        self.play_task = self.bot.loop.create_task(coro)
 
     async def play_song(self, song_url: str):
         try:
@@ -89,16 +104,21 @@ class MusicPlayer:
                 song_info = ydl.extract_info(song_url, download=False)
             self.guild.voice_client.play(
                 discord.FFmpegOpusAudio(song_info["url"], **ffmpeg_options),
-                after=lambda e: self.next_song(),
+                after=lambda e: self.next_song(e),
             )
         except Exception as err:
             print(err)
+            if self.guild.voice_client.is_playing():
+                self.guild.voice_client.stop()
             self.next_song()
 
 
 class MusicCog(commands.Cog, name="MusicCog"):
     def __init__(self, bot: Alfbote):
         self.bot = bot
+
+    def get_music_player(self, guild: Guild) -> MusicPlayer:
+        return bot.guild_db.get(guild, "music_player")
 
     @commands.command()
     async def p(self, ctx: discord.ApplicationContext, msg: str = None):
@@ -107,10 +127,34 @@ class MusicCog(commands.Cog, name="MusicCog"):
             return
 
         music_player: MusicPlayer = bot.guild_db.get(ctx.message.guild, "music_player")
-        await music_player.join_channel(ctx)
-        music_player.song_queue.put(msg)
-        if music_player.song_queue.qsize() == 1:
-            await music_player.play_song(msg)
+        if await music_player.join_channel(ctx):
+            try:
+                await ctx.message.add_reaction(emoji="👍")
+            except (discord.HTTPException, discord.Forbidden):
+                pass
+            music_player.song_queue.append(msg)
+            if not music_player.guild.voice_client.is_playing():
+                music_player.next_song()
+
+    @commands.command()
+    async def skip(self, ctx: discord.ApplicationContext, msg: str = None):
+        # Only skip if user is in the playing channel
+        if (
+            ctx is None
+            or ctx.author is None
+            or ctx.author.voice is None
+            or ctx.author.voice.channel is None
+            or ctx.voice_client is None
+            or ctx.voice_client.channel is None
+            or (ctx.author.voice.channel != ctx.voice_client.channel)
+        ):
+            return
+
+        music_player: MusicPlayer = self.get_music_player(ctx.message.guild)
+        if msg == "all":
+            music_player.skip_song(skip_all=True)
+        else:
+            music_player.skip_song()
 
 
 @bot.slash_command(
