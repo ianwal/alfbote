@@ -87,8 +87,6 @@ class MusicPlayer:
 
         next_song = self.song_queue.pop()
         assert next_song is not None
-        if self.guild.voice_client.is_playing():
-            self.guild.voice_client.stop()
         coro = self.play_song(next_song)
         self.play_task = self.bot.loop.create_task(coro)
 
@@ -102,6 +100,8 @@ class MusicPlayer:
             ydl_opts = {"format": "bestaudio"}
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 song_info = ydl.extract_info(song_url, download=False)
+            if self.guild.voice_client.is_playing():
+                self.guild.voice_client.stop()
             self.guild.voice_client.play(
                 discord.FFmpegOpusAudio(song_info["url"], **ffmpeg_options),
                 after=lambda e: self.next_song(e),
@@ -122,7 +122,6 @@ class MusicCog(commands.Cog, name="MusicCog"):
 
     @commands.command()
     async def p(self, ctx: discord.ApplicationContext, msg: str = None):
-        # Only play TTS for users in a channel
         if msg is None:
             return
 
