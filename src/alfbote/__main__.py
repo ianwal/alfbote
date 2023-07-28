@@ -3,8 +3,10 @@ from __future__ import annotations
 import os
 from pathlib import Path
 from typing import TYPE_CHECKING
+import queue
 
 import discord
+from discord.ext import commands
 from dotenv import load_dotenv
 from rich import print
 
@@ -39,6 +41,76 @@ if COLLAB:
     nest_asyncio.apply()
 
 bot = Alfbote()
+
+import yt_dlp
+
+
+class MusicPlayer:
+    def __init__(self, bot: Alfbote, guild: Guild):
+        self.bot = bot
+        self.song_queue = queue.Queue()
+        self.guild = guild
+
+    async def join_channel(self, ctx: discord.ApplicationContext):
+        try:
+            if ctx.voice_client is None:
+                await ctx.message.author.voice.channel.connect()
+            elif ctx.author.voice.channel and (ctx.author.voice.channel == ctx.voice_client.channel):
+                return
+            else:
+                await ctx.voice_client.disconnect(force=True)
+                await ctx.message.author.voice.channel.connect()
+        except discord.ClientException:
+            print("Error connecting to channel.")
+
+    async def skip_song(self, ctx: discord.ApplicationContext):
+        if ctx.voice_client.is_playing():
+            ctx.voice_client.stop()
+
+    def next_song(self):
+        try:
+            next_song = self.song_queue.get(block=False)
+        except queue.Empty:
+            return
+        assert next_song is not None
+
+        coro = self.play_song(next_song)
+        self.bot.loop.create_task(coro)
+
+    async def play_song(self, song_url: str):
+        try:
+            ffmpeg_options = {
+                "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
+                "options": "-vn",
+            }
+
+            ydl_opts = {"format": "bestaudio"}
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                song_info = ydl.extract_info(song_url, download=False)
+            self.guild.voice_client.play(
+                discord.FFmpegOpusAudio(song_info["url"], **ffmpeg_options),
+                after=lambda e: self.next_song(),
+            )
+        except Exception as err:
+            print(err)
+            self.next_song()
+
+
+class MusicCog(commands.Cog, name="MusicCog"):
+    def __init__(self, bot: Alfbote):
+        self.bot = bot
+
+    @commands.command()
+    async def p(self, ctx: discord.ApplicationContext, msg: str = None):
+        # Only play TTS for users in a channel
+        if msg is None:
+            return
+
+        music_player: MusicPlayer = bot.guild_db.get(ctx.message.guild, "music_player")
+        await music_player.join_channel(ctx)
+        music_player.song_queue.put(msg)
+        if music_player.song_queue.qsize() == 1:
+            await music_player.play_song(msg)
 
 
 @bot.slash_command(
@@ -90,7 +162,7 @@ async def on_message(msg: Message):
 async def on_ready():
     print(f"[blue] Logged in as {bot.user}")
     for guild in bot.guilds:
-        bot.guild_db.create(guild, {"last_msg": None})
+        bot.guild_db.create(guild, {"last_msg": None, "music_player": MusicPlayer(bot, guild)})
     print(str(bot.guild_db))
 
 
@@ -112,6 +184,6 @@ if CHATGEN:
 
     bot.add_cog(ChatGen(bot, tts=TTSGEN, gpu=GPU))
 
-cli = CLICog(bot)
-bot.add_cog(cli)
+bot.add_cog(MusicCog(bot))
+# bot.add_cog(CLICog(bot))
 bot.run(DISCORD_API_KEY)

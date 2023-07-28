@@ -24,6 +24,8 @@ dependencies = [
   "py-cord[speed]", # This is for performance, but requires libffni, libnacl, and Python dev headers (python3-dev on ubuntu)
   "python-dotenv",
   "rich",
+  "mediapy",
+  "yt_dlp", # For music
 ]
 
 [tool.hatch.metadata]
