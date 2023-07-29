@@ -41,7 +41,7 @@ class MyView(discord.ui.View):
     async def button_callback(self, button, interaction: discord.Interaction):
         self.stop_pressed = True
         self.clear_items()
-        await interaction.response.edit_message(content=f"{self.message.content} [STOPPED]", view=self)
+        await interaction.response.edit_message(content=f"{self.message.content}—", view=self)
 
 
 class ChatGen(commands.Cog, name="ChatGen"):
