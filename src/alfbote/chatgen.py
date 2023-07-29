@@ -26,13 +26,16 @@ TTS_MODEL = "tts_models/en/ljspeech/tacotron2-DCA"
 class MyView(discord.ui.View):
     stop_pressed = False
 
-    def __init__(self):
+    def __init__(self, respondent: discord.User | discord.Member = None):
         super().__init__(timeout=120, disable_on_timeout=True)
+        self.respondent_id = None
+        if respondent is not None:
+            self.respondent_id = respondent.id # The person's ID who the bot is responding to
 
     async def interaction_check(self, interaction):
-        if interaction.user.id != interaction.message.author.id and interaction.user.id not in People.admins:
-            return False
-        return True
+        if interaction.user.id == self.respondent_id or interaction.user.id in People.admins:
+            return True
+        return False
 
     @discord.ui.button(label="stop", style=discord.ButtonStyle.danger)
     async def button_callback(self, button, interaction: discord.Interaction):
@@ -68,7 +71,7 @@ class ChatGen(commands.Cog, name="ChatGen"):
         with self.chat_lock:
             # Generate and edit message one word at a time just like ChatGPT
             message: discord.Message = None
-            stop_view = MyView()
+            stop_view = MyView(respondent=ctx.message.author)
             async with ctx.typing():
                 try:
                     for a, token in enumerate(self.generate_message(msg, streaming=True), 0):
@@ -95,7 +98,7 @@ class ChatGen(commands.Cog, name="ChatGen"):
 
         if self.TTS_ENABLED:
             # Only play TTS for users in a channel
-            if ctx.message.author.voice is None:
+            if ctx.message.author.voice is None or ctx.message.author.voice.channel is None:
                 return
 
             with TemporaryDirectory() as tmpdir:
