@@ -41,7 +41,6 @@ if COLAB:
 
 bot = Alfbote()
 
-import yt_dlp
 
 
 class MusicPlayer:
@@ -230,6 +229,7 @@ if CHATGEN:
 
 if MUSIC:
     print("[green] Music enabled")
+    import yt_dlp
     bot.add_cog(MusicCog(bot))
 
 # bot.add_cog(CLICog(bot))
