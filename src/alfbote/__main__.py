@@ -26,7 +26,6 @@ if DISCORD_API_KEY is None:
     exit(1)
 
 # Options
-COLAB = bool(int(os.getenv("COLAB", "0")))
 GPU = bool(int(os.getenv("GPU", "0")))
 IMAGEGEN = bool(int(os.getenv("IMAGEGEN", "0")))
 CHATGEN = bool(int(os.getenv("CHATGEN", "0")))
@@ -34,13 +33,7 @@ TTSGEN = bool(int(os.getenv("TTSGEN", "0")))
 MUSIC = bool(int(os.getenv("MUSIC", "0")))
 ALLOWED_CHANNEL = os.getenv("ALLOWED_CHANNEL", "bot-channel")
 
-if COLAB:
-    import nest_asyncio
-
-    nest_asyncio.apply()
-
 bot = Alfbote()
-
 
 
 class MusicPlayer:
@@ -213,6 +206,7 @@ if GPU:
 if IMAGEGEN:
     print("[green] ImageGen enabled")
     from alfbote.imagegen import ImageGen
+
     if not GPU:
         print("[red] ERROR: ImageGen requires GPU=True.")
         exit(1)
@@ -222,6 +216,7 @@ if IMAGEGEN:
 if CHATGEN:
     print("[green] ChatGen enabled")
     from alfbote.chatgen import ChatGen
+
     if TTSGEN:
         print("[green] TTS enabled")
 
@@ -230,6 +225,7 @@ if CHATGEN:
 if MUSIC:
     print("[green] Music enabled")
     import yt_dlp
+
     bot.add_cog(MusicCog(bot))
 
 # bot.add_cog(CLICog(bot))
