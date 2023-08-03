@@ -7,7 +7,7 @@ from pathlib import Path
 DIR = Path(__file__).parent
 AI_NAME = "alfbote"
 DEFAULT_MODEL_DIR = DIR / "models"
-DEFAULT_MODEL = DEFAULT_MODEL_DIR / "llama2_7b_chat_uncensored.ggmlv3.q4_1.bin"
+DEFAULT_MODEL = DEFAULT_MODEL_DIR / "llama2_7b_chat_uncensored.ggmlv3.q4_K_M.bin"
 USER_NAME = "user"
 
 today = datetime.datetime.today()
