@@ -203,24 +203,28 @@ async def on_ready():
 if GPU:
     print("[green] GPU enabled")
 
-if IMAGEGEN:
-    print("[green] ImageGen enabled")
-    from alfbote.imagegen import ImageGen
-
-    if not GPU:
-        print("[red] ERROR: ImageGen requires GPU=True.")
-        exit(1)
-
-    bot.add_cog(ImageGen(bot, ROCM=True))
-
 if CHATGEN:
     print("[green] ChatGen enabled")
     from alfbote.chatgen import ChatGen
 
     if TTSGEN:
         print("[green] TTS enabled")
+    
+    chatgen_gpu = GPU
+    if IMAGEGEN and GPU:
+        # Too much VRAM to run both, and Stable Diffusion
+        # is WAY too slow to run on CPU
+        print("[yellow] Warning: ImageGen and ChatGen enabled while using GPU. Disabling GPU for ChatGen.")
+        chatgen_gpu = False
 
-    bot.add_cog(ChatGen(bot, tts=TTSGEN))
+    bot.add_cog(ChatGen(bot, tts=TTSGEN, gpu=GPU))
+
+if IMAGEGEN:
+    print("[green] ImageGen enabled")
+    from alfbote.imagegen import ImageGen
+
+    bot.add_cog(ImageGen(bot, gpu=GPU, low_vram=True, ROCM=True))
+
 
 if MUSIC:
     print("[green] Music enabled")

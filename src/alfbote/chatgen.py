@@ -43,7 +43,7 @@ class ChatGen(commands.Cog, name="ChatGen"):
     def __init__(self, bot: Alfbote, tts: bool = False, gpu: bool = False):
         self.bot = bot
         n_gpu_layers = 1000 if gpu else 0
-        self.model = Llama2(n_threads=8, n_gpu_layers=n_gpu_layers)
+        self.model = Llama2(n_threads=12, n_gpu_layers=n_gpu_layers)
 
         self.TTS_ENABLED = tts
 
@@ -75,7 +75,7 @@ class ChatGen(commands.Cog, name="ChatGen"):
                         if message is None:
                             message = await ctx.send(current_msg, view=stop_view)
                         else:
-                            if a % 15 == 0:
+                            if a % 10 == 0:
                                 await message.edit(content=" " + current_msg + " ")
 
                         if stop_view.stop_pressed:

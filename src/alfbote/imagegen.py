@@ -15,7 +15,6 @@ if TYPE_CHECKING:
 
 from discord import ApplicationContext, Member, Message
 
-import mediapy as media
 import torch
 from diffusers import (
     DDIMScheduler,
@@ -23,6 +22,7 @@ from diffusers import (
     EulerDiscreteScheduler,
     LMSDiscreteScheduler,
     PNDMScheduler,
+    DiffusionPipeline,
     StableDiffusionPipeline,
 )
 from discord import File
@@ -30,52 +30,57 @@ from discord.ext import commands
 
 
 class ImageGen(commands.Cog, name="ImageGen"):
-    # I don't have enough VRAM to run larger images on a RX 6600XT
-    IMAGE_LENGTH = 512
+    # I don't have enough VRAM to run 768x768 on a RX 6600XT
+    IMAGE_DIM = 512
+    MODEL_ID = "dreamlike-art/dreamlike-photoreal-2.0"
 
-    def __init__(self, bot, ROCM: bool = False):
+    def __init__(self, bot, gpu: bool = False, low_vram=False, ROCM: bool = False):
         self.bot = bot
         self.image_lock = Lock()
+        self.GPU = gpu
+        self.low_vram = low_vram
 
-        if not torch.cuda.is_available():
-            print("[red] ERROR: CUDA not detected. Exiting...")
-            exit(1)
+        if self.GPU:
+            if not torch.cuda.is_available():
+                print("[red] ERROR: CUDA not detected in ImageGen. Falling back to CPU.")
+                self.GPU = False
+            else:
+                # enabling benchmark option seems to enable a range of cards to do fp16 when they otherwise can't
+                # see https://github.com/AUTOMATIC1111/stable-diffusion-webui/pull/4407
+                if any(
+                    torch.cuda.get_device_capability(devid) == (7, 5) for devid in range(0, torch.cuda.device_count())
+                ):
+                    torch.backends.cudnn.benchmark = True
 
-        scheduler = None
-        MODEL_ID = "dreamlike-art/dreamlike-photoreal-2.0"
-        # MODEL_ID = "runwayml/stable-diffusion-v1-5"
+                torch.backends.cuda.matmul.allow_tf32 = True
+                torch.backends.cudnn.allow_tf32 = True
 
-        if MODEL_ID.startswith("stabilityai/"):
-            model_revision = "fp16"
+        torch_dtype = torch.float16 if self.GPU else torch.float32
+        torch.set_float32_matmul_precision('medium')
+        self.pipe = StableDiffusionPipeline.from_pretrained(
+            ImageGen.MODEL_ID,
+            use_safetensors=True,
+            torch_dtype=torch_dtype,
+        )
+        self.pipe.scheduler = DPMSolverMultistepScheduler.from_config(self.pipe.scheduler.config)
+
+        if self.GPU:
+            if ROCM:
+                print("[magenta] ImageGen: ROCM enabled")
+                os.environ["HSA_OVERRIDE_GFX_VERSION"] = "10.3.0"
+            else:
+                print("[green] ImageGen: CUDA enabled")
+
+            self.device = torch.device("cuda")
+            self.pipe.enable_attention_slicing()
+            self.pipe.enable_vae_tiling()
+            if low_vram:
+                print("[yellow] ImageGen: Low VRAM enabled")
+                self.pipe.enable_model_cpu_offload()
+            else:
+                self.pipe = self.pipe.to(self.device)
         else:
-            model_revision = None
-
-        if scheduler is None:
-            self.pipe = StableDiffusionPipeline.from_pretrained(
-                MODEL_ID,
-                torch_dtype=torch.float16,
-                revision=model_revision,
-            )
-        else:
-            self.pipe = StableDiffusionPipeline.from_pretrained(
-                MODEL_ID,
-                scheduler=scheduler,
-                torch_dtype=torch.float16,
-                revision=model_revision,
-            )
-
-        self.setup_gpu(ROCM=ROCM)
-
-    def setup_gpu(self, ROCM: bool = False):
-        if ROCM:
-            # ROCM workaround
-            os.environ["HSA_OVERRIDE_GFX_VERSION"] = "10.3.0"
-        else:
-            # xformers doesn't work on ROCM for some reason
-            self.pipe.enable_xformers_memory_efficient_attention()
-
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.pipe = self.pipe.to(self.device)
+            self.device = torch.device("cpu")
 
     # Image generation
     @commands.command()
@@ -93,24 +98,31 @@ class ImageGen(commands.Cog, name="ImageGen"):
                     discord_file = File(BytesIO(file.read()), filename=f"{msg[:64]}.jpg")
                     await ctx.send(f"{ctx.message.author.mention} {msg}", file=discord_file)
 
-    def generate_image(self, prompt: str, iterations: int = 25, negative_prompt: str = None):
+    def generate_image(self, prompt: str, iterations: int = 20, negative_prompt: str = None):
         num_images = 1
         seed = randint(0, 2147483647)
         iterations = max(min(iterations, 60), 5)  # Get iterations in range (5, 60)
-        remove_safety = True
 
-        if remove_safety:
-            self.pipe.safety_checker = None
+        if self.GPU:
+            generator = torch.Generator("cuda").manual_seed(seed)
+        else:
+            generator = torch.Generator("cpu").manual_seed(seed)
 
         images = self.pipe(
             prompt,
-            height=ImageGen.IMAGE_LENGTH,
-            width=ImageGen.IMAGE_LENGTH,
+            height=ImageGen.IMAGE_DIM,
+            width=ImageGen.IMAGE_DIM,
             num_inference_steps=iterations,
             guidance_scale=9,
             num_images_per_prompt=num_images,
             negative_prompt=negative_prompt,
-            generator=torch.Generator("cuda").manual_seed(seed),
+            generator=generator,
         ).images
-
+        self.torch_gc()
         return images
+
+    def torch_gc(self):
+        if torch.cuda.is_available():
+            with torch.cuda.device(self.device):
+                torch.cuda.empty_cache()
+                torch.cuda.ipc_collect()
