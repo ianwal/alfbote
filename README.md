@@ -20,6 +20,13 @@ pip3 install torch torchvision torchaudio --index-url https://download.pytorch.o
 
 Also set the environment variable `HSA_OVERRIDE_GFX_VERSION=10.3.0` or it will segfault
 
+For chatgen:
+
+Install llama-cpp-python with OpenCL for ROCM:
+```sh
+CMAKE_ARGS="-DLLAMA_CLBLAST=on" FORCE_CMAKE=1 pip install llama-cpp-python
+```
+
 ## License
 
 `alfbote` is distributed under the terms of the [MIT](https://spdx.org/licenses/MIT.html) license.

@@ -34,7 +34,7 @@ allow-direct-references = true
 [project.optional-dependencies]
 rocm = ["torch @ https://download.pytorch.org/whl/rocm5.4.2", "torchvision @ https://download.pytorch.org/whl/rocm5.4.2", "torchaudio @ https://download.pytorch.org/whl/rocm5.4.2"]
 imagegen = ["diffusers", "transformers", "accelerate", "mediapy", "triton", "scipy", "ftfy", "spacy==3.4.4"] # Optional: xformers==0.0.16rc425 Does not work with ROCM but may speed up nvidia
-chatgen = ["gpt4all"]
+chatgen = ["llama-cpp-python"]
 chattts = ["TTS", "py-cord[voice]", "alfbote[chatgen]"]
 all = ["alfbote[imagegen, chatgen, chattts]"]
 allrocm = ["alfbote[rocm, all]"]

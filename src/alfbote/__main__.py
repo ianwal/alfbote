@@ -220,7 +220,7 @@ if CHATGEN:
     if TTSGEN:
         print("[green] TTS enabled")
 
-    bot.add_cog(ChatGen(bot, tts=TTSGEN, gpu=GPU))
+    bot.add_cog(ChatGen(bot, tts=TTSGEN))
 
 if MUSIC:
     print("[green] Music enabled")

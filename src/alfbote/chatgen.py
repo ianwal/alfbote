@@ -6,20 +6,15 @@ from typing import TYPE_CHECKING, Iterable
 
 import discord
 from discord.ext import commands
-from gpt4all import GPT4All
 from rich import print
 
+from alfbote.llamacpp.chat import Llama2
 from alfbote.people import People
 from alfbote.utils import run_blocking
 
 if TYPE_CHECKING:
     from alfbote.bots import Alfbote
 
-# CHAT_MODEL = "nous-hermes-13b.ggmlv3.q4_0.bin"
-# CHAT_MODEL = "ggml-gpt4all-j-v1.3-groovy.bin"
-CHAT_MODEL = "wizardLM-13B-Uncensored.ggmlv3.q4_0.bin"  # VERY GOOD
-# CHAT_MODEL = "ggml-mpt-7b-chat.bin"
-# CHAT_MODEL = "ggml-model-gpt4all-falcon-q4_0.bin"
 TTS_MODEL = "tts_models/en/ljspeech/tacotron2-DCA"
 
 
@@ -30,7 +25,7 @@ class MyView(discord.ui.View):
         super().__init__(timeout=120, disable_on_timeout=True)
         self.respondent_id = None
         if respondent is not None:
-            self.respondent_id = respondent.id # The person's ID who the bot is responding to
+            self.respondent_id = respondent.id  # The person's ID who the bot is responding to
 
     async def interaction_check(self, interaction):
         if interaction.user.id == self.respondent_id or interaction.user.id in People.admins:
@@ -47,9 +42,8 @@ class MyView(discord.ui.View):
 class ChatGen(commands.Cog, name="ChatGen"):
     def __init__(self, bot: Alfbote, tts: bool = False, gpu: bool = False):
         self.bot = bot
-        self.model = GPT4All(CHAT_MODEL, n_threads=12)
-        self.model._is_chat_session_activated = True
-        self.model.current_chat_session = []
+        n_gpu_layers = 1000 if gpu else 0
+        self.model = Llama2(n_threads=8, n_gpu_layers=n_gpu_layers)
 
         self.TTS_ENABLED = tts
 
@@ -58,7 +52,7 @@ class ChatGen(commands.Cog, name="ChatGen"):
         if tts:
             from TTS.api import TTS
 
-            self.tts = TTS(TTS_MODEL, gpu=gpu)
+            self.tts = TTS(TTS_MODEL, gpu=True)
 
     # Chat Interaction
     @commands.command()
@@ -67,6 +61,7 @@ class ChatGen(commands.Cog, name="ChatGen"):
         if self.chat_lock.locked():
             return
 
+        stopped = False
         output = []
         with self.chat_lock:
             # Generate and edit message one word at a time just like ChatGPT
@@ -74,29 +69,31 @@ class ChatGen(commands.Cog, name="ChatGen"):
             stop_view = MyView(respondent=ctx.message.author)
             async with ctx.typing():
                 try:
-                    for a, token in enumerate(self.generate_message(msg, streaming=True), 0):
+                    for a, token in enumerate(self.generate_response(msg), 0):
                         output.append(token)
                         current_msg = "".join(output)
                         if message is None:
                             message = await ctx.send(current_msg, view=stop_view)
                         else:
-                            if a % 10 == 0:
-                                await message.edit(content=current_msg)
+                            if a % 15 == 0:
+                                await message.edit(content=" " + current_msg + " ")
 
                         if stop_view.stop_pressed:
-                            await message.edit(content=f"{current_msg} [STOPPED]")
-                            return
+                            await message.edit(content=f"{current_msg} —")
+                            stopped = True
+                            break
 
                     output = current_msg
                     # Remove stop button
                     stop_view.clear_items()
-                    await message.edit(content=current_msg, view=stop_view)
+                    if message is not None:
+                        await message.edit(content=current_msg, view=stop_view)
 
                 # If the message is removed with the stop button or the wtf command, ignore the error
                 except commands.errors.CommandInvokeError:
                     pass
 
-        if self.TTS_ENABLED:
+        if self.TTS_ENABLED and not stopped:
             # Only play TTS for users in a channel
             if ctx.message.author.voice is None or ctx.message.author.voice.channel is None:
                 return
@@ -139,21 +136,8 @@ class ChatGen(commands.Cog, name="ChatGen"):
         elif ctx.author.voice.channel and (ctx.author.voice.channel == ctx.voice_client.channel):
             ctx.voice_client.stop()
 
-    # General message improvements, such as model specific improvements
-    def improve_message(self, msg: str) -> str:
-        # This model is really good but it needs this prompt for it to return stuff easily
-        if CHAT_MODEL == "wizardLM-13B-Uncensored.ggmlv3.q4_0.bin":
-            msg = f"explain, describe, or continue the conversation: {msg}"
-        return msg
-
-    def generate_message(self, msg: str, streaming: bool = False, max_tokens: int = 1000) -> str | Iterable:
-        msg = self.improve_message(msg)
-
-        if streaming:
-            return self.model.generate(msg, n_batch=16, max_tokens=max_tokens, streaming=True)
-        else:
-            output = self.model.generate(msg, max_tokens=max_tokens, n_batch=16)
-            return output
+    def generate_response(self, msg: str) -> str | Iterable:
+        return self.model.generate(msg)
 
     def generate_speech(self, text: str, audio_file: str):
         if self.tts is not None:
