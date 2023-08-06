@@ -15,7 +15,6 @@ from alfbote.utils import run_blocking
 if TYPE_CHECKING:
     from alfbote.bots import Alfbote
 
-TTS_MODEL = "tts_models/en/ljspeech/tacotron2-DCA"
 
 
 class MyView(discord.ui.View):
@@ -51,8 +50,9 @@ class ChatGen(commands.Cog, name="ChatGen"):
         self.tts = None
         if tts:
             from TTS.api import TTS
-
-            self.tts = TTS(TTS_MODEL, gpu=True)
+            TTS_MODEL = "tts_models/en/vctk/vits" # Very good model that is fairly fast
+            TTS_SPEAKER = "p273" # VITS speaker. Change/remove this for other models
+            self.tts = TTS(TTS_MODEL, speaker=TTS_SPEAKER, gpu=True)
 
     # Chat Interaction
     @commands.command()
