@@ -16,7 +16,6 @@ if TYPE_CHECKING:
     from alfbote.bots import Alfbote
 
 
-
 class MyView(discord.ui.View):
     stop_pressed = False
 
@@ -39,20 +38,21 @@ class MyView(discord.ui.View):
 
 
 class ChatGen(commands.Cog, name="ChatGen"):
+    TTS_MODEL = "tts_models/en/vctk/vits"  # Very good model that is fairly fast
+    TTS_SPEAKER = "p273"  # VITS speaker. Change/remove this for other models
+
     def __init__(self, bot: Alfbote, tts: bool = False, gpu: bool = False):
         self.bot = bot
         n_gpu_layers = 1000 if gpu else 0
         self.model = Llama2(n_threads=12, n_gpu_layers=n_gpu_layers)
 
-        self.TTS_ENABLED = tts
+        self.tts_enabled = tts
 
         self.chat_lock = Lock()
-        self.tts = None
-        if tts:
+        if self.tts_enabled:
             from TTS.api import TTS
-            TTS_MODEL = "tts_models/en/vctk/vits" # Very good model that is fairly fast
-            TTS_SPEAKER = "p273" # VITS speaker. Change/remove this for other models
-            self.tts = TTS(TTS_MODEL, speaker=TTS_SPEAKER, gpu=True)
+
+            self.tts = TTS(model_name=self.TTS_MODEL, progress_bar=False, gpu=False)
 
     # Chat Interaction
     @commands.command()
@@ -61,39 +61,11 @@ class ChatGen(commands.Cog, name="ChatGen"):
         if self.chat_lock.locked():
             return
 
-        stopped = False
-        output = []
+        output = None
         with self.chat_lock:
-            # Generate and edit message one word at a time just like ChatGPT
-            message: discord.Message = None
-            stop_view = MyView(respondent=ctx.message.author)
-            async with ctx.typing():
-                try:
-                    for a, token in enumerate(self.generate_response(msg), 0):
-                        output.append(token)
-                        current_msg = "".join(output)
-                        if message is None:
-                            message = await ctx.send(current_msg, view=stop_view)
-                        else:
-                            if a % 10 == 0:
-                                await message.edit(content=" " + current_msg + " ")
+            output = await self.run_chat_message(ctx=ctx, msg=msg)
 
-                        if stop_view.stop_pressed:
-                            await message.edit(content=f"{current_msg} —")
-                            stopped = True
-                            break
-
-                    output = current_msg
-                    # Remove stop button
-                    stop_view.clear_items()
-                    if message is not None:
-                        await message.edit(content=current_msg, view=stop_view)
-
-                # If the message is removed with the stop button or the wtf command, ignore the error
-                except commands.errors.CommandInvokeError:
-                    pass
-
-        if self.TTS_ENABLED and not stopped:
+        if self.tts_enabled and self.tts is not None and output is not None:
             # Only play TTS for users in a channel
             if ctx.message.author.voice is None or ctx.message.author.voice.channel is None:
                 return
@@ -128,6 +100,37 @@ class ChatGen(commands.Cog, name="ChatGen"):
                 except discord.ClientException:
                     pass
 
+    async def run_chat_message(self, ctx, msg):
+        """Generate and edit message one word at a time just like ChatGPT"""
+        output = []
+        message: discord.Message = None
+        stop_view = MyView(respondent=ctx.message.author)
+        async with ctx.typing():
+            try:
+                TOKEN_EDIT_THRESHOLD = 15
+                for num_token, token in enumerate(self.generate_response(msg), 0):
+                    output.append(token)
+                    current_msg = "".join(output)
+                    if message is None:
+                        message = await ctx.send(current_msg, view=stop_view)
+                    else:
+                        if num_token % TOKEN_EDIT_THRESHOLD == 0:
+                            await message.edit(content=" " + current_msg + " ")
+
+                    if stop_view.stop_pressed:
+                        await message.edit(content=f"{current_msg} —")
+                        return None
+
+                output = current_msg
+                # Remove stop button
+                stop_view.clear_items()
+                if message is not None:
+                    await message.edit(content=current_msg, view=stop_view)
+            # If the message is removed with the stop button or the wtf command, ignore the error
+            except commands.errors.CommandInvokeError:
+                pass
+        return output
+
     # Stop all voice output including TTS
     @commands.command()
     async def stfu(self, ctx: discord.ApplicationContext):
@@ -141,4 +144,8 @@ class ChatGen(commands.Cog, name="ChatGen"):
 
     def generate_speech(self, text: str, audio_file: str):
         if self.tts is not None:
-            self.tts.tts_to_file(text=text, emotion="Happy", speed=2, file_path=audio_file)
+            self.tts.tts_to_file(
+                text=text,
+                speaker=self.TTS_SPEAKER,
+                file_path=audio_file,
+            )
